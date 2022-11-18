@@ -4,16 +4,15 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Getter
-@NoArgsConstructor()
+@NoArgsConstructor
 @AllArgsConstructor(staticName = "build")
 public class ScrapingResult {
 
-    private String dept;
-    private String description;
-    private String price;
-
-    public static ScrapingResult build(String dept, String description, String price) {
-        return new ScrapingResult(dept, description, price);
-    }
+    private Company company;
+    private String deptName;
+    private String productName;
+    private BigDecimal price;
 }
