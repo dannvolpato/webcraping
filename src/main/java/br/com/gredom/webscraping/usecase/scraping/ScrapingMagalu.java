@@ -1,34 +1,30 @@
-package br.com.gredom.webscraping.scraping;
+package br.com.gredom.webscraping.usecase.scraping;
 
+import br.com.gredom.webscraping.dto.ScrapingItemDto;
+import br.com.gredom.webscraping.enums.Company;
+import br.com.gredom.webscraping.response.ScrapingResponse;
+import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 @Service
-@RestController
 @RequiredArgsConstructor
 public class ScrapingMagalu {
 
     private static final Company company = Company.MAGALU;
     private final WebClient webClient;
 
-    @GetMapping
-    public List<ScrapingResult> execute() throws Exception {
+    public ScrapingResponse execute() throws Exception {
 
-        List<ScrapingResult> result = new ArrayList<>();
+        ScrapingResponse response = ScrapingResponse.build();
 
         String baseUrl = "https://www.magazineluiza.com.br/";
         HtmlPage page = webClient.getPage(baseUrl);
@@ -38,42 +34,43 @@ public class ScrapingMagalu {
         var itens = departamentos.stream()
                 .collect(Collectors.toMap(e -> e.getHrefAttribute(), e -> e.asNormalizedText()));
 
-        List<Future<List<ScrapingResult>>> futures = new ArrayList<>();
-        ExecutorService executor = Executors.newFixedThreadPool(10);
+//        List<Future<List<ScrapingItem>>> futures = new ArrayList<>();
+//        ExecutorService executor = Executors.newFixedThreadPool(10);
 
         for (var item : itens.entrySet()) {
 
             String link = item.getKey();
             String deptName = item.getValue();
 
-//            result.addAll(executeDept(link, deptName));
+            response.addAll(executeDept(link, deptName));
 
-            Future<List<ScrapingResult>> future = executor.submit(() -> executeDept(link, deptName));
-            futures.add(future);
+//            Future<List<ScrapingItem>> future = executor.submit(() -> executeDept(link, deptName));
+//            futures.add(future);
         }
 
-        executor.shutdown();
+//        executor.shutdown();
+//
+//        futures.forEach(f -> {
+//            try {
+//                response.addAll(f.get());
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//        });
 
-        futures.forEach(f -> {
-            try {
-                result.addAll(f.get());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        System.out.println(String.format("Result: %s", response.getItens().size()));
 
-        System.out.println(String.format("Result: %s", result.size()));
-
-        return (result);
+        return response;
     }
 
-    private List<ScrapingResult> executeDept(String link, String deptName) {
+    private List<ScrapingItemDto> executeDept(String link, String deptName) throws InterruptedException {
 
-        List<ScrapingResult> result = new ArrayList<>();
+        List<ScrapingItemDto> result = new ArrayList<>();
         HtmlPage page;
 
         int numberPage = 1;
         boolean goToNextPage = true;
+        int retry = 1;
 
         while (goToNextPage) {
             String linkPaginado = String.format("%s%s%s", link, "?page=", numberPage);
@@ -91,15 +88,22 @@ public class ScrapingMagalu {
 
                     var descricaoPreco = p.asNormalizedText();
 
-                    result.add(ScrapingResult.build(company, deptName, productName, parsePrice(descricaoPreco)));
+                    result.add(ScrapingItemDto.build(company, deptName, productName, parsePrice(descricaoPreco)));
                 }
 
                 goToNextPage = !CollectionUtils.isEmpty(produtos);
 
+                numberPage++;
+            } catch (FailingHttpStatusCodeException e) {
+                if (e.getStatusCode() != 404 && retry < 3) {
+                    Thread.sleep(2_000);
+                } else
+                    goToNextPage = false;
+
+                retry++;
             } catch (Exception e) {
                 goToNextPage = false;
             }
-            numberPage++;
         }
 
         return result;

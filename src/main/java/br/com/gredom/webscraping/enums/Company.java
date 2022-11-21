@@ -1,4 +1,4 @@
-package br.com.gredom.webscraping.scraping;
+package br.com.gredom.webscraping.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -7,7 +7,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum Company {
 
-    MAGALU("Magalu");
+    MAGALU("Magalu"),
+    AMERICANAS("Americanas");
 
     private final String descricao;
 }

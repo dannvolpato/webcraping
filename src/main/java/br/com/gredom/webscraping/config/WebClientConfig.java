@@ -1,4 +1,4 @@
-package br.com.gredom.webscraping.scraping;
+package br.com.gredom.webscraping.config;
 
 import com.gargoylesoftware.htmlunit.BrowserVersion;
 import com.gargoylesoftware.htmlunit.WebClient;
@@ -10,7 +10,7 @@ public class WebClientConfig {
 
     @Bean
     public WebClient getWebClient() {
-        WebClient client = new WebClient(BrowserVersion.FIREFOX);
+        WebClient client = new WebClient(BrowserVersion.CHROME);
         client.getOptions().setCssEnabled(false);
         client.getOptions().setJavaScriptEnabled(false);
         return client;
