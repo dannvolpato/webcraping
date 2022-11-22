@@ -26,7 +26,7 @@ public class ScrapingMagalu {
 
         ScrapingResponse response = ScrapingResponse.build();
 
-        String baseUrl = "https://www.magazineluiza.com.br/";
+        String baseUrl = "https://www.magazineluiza.com.br";
         HtmlPage page = webClient.getPage(baseUrl);
 
         List<HtmlAnchor> departamentos = page.getByXPath("//*[@id=\"__next\"]/div/main/section[1]/div[2]/header/div/div[3]/nav/ul/li[1]/div[2]/div/div/div[1]/ul/li[*]/a");
@@ -34,29 +34,13 @@ public class ScrapingMagalu {
         var itens = departamentos.stream()
                 .collect(Collectors.toMap(e -> e.getHrefAttribute(), e -> e.asNormalizedText()));
 
-//        List<Future<List<ScrapingItem>>> futures = new ArrayList<>();
-//        ExecutorService executor = Executors.newFixedThreadPool(10);
-
         for (var item : itens.entrySet()) {
 
             String link = item.getKey();
             String deptName = item.getValue();
 
             response.addAll(executeDept(link, deptName));
-
-//            Future<List<ScrapingItem>> future = executor.submit(() -> executeDept(link, deptName));
-//            futures.add(future);
         }
-
-//        executor.shutdown();
-//
-//        futures.forEach(f -> {
-//            try {
-//                response.addAll(f.get());
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//        });
 
         System.out.println(String.format("Result: %s", response.getItens().size()));
 

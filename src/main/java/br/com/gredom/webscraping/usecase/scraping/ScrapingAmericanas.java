@@ -1,95 +1,125 @@
 package br.com.gredom.webscraping.usecase.scraping;
 
+import br.com.gredom.webscraping.dto.ScrapingItemDto;
 import br.com.gredom.webscraping.enums.Company;
 import br.com.gredom.webscraping.response.ScrapingResponse;
-import io.github.bonigarcia.wdm.WebDriverManager;
+import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
+import com.gargoylesoftware.htmlunit.WebClient;
+import com.gargoylesoftware.htmlunit.html.*;
 import lombok.RequiredArgsConstructor;
-import org.openqa.selenium.By;
-import org.openqa.selenium.chrome.ChromeDriver;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ScrapingAmericanas {
 
+    private final WebClient webClient;
+
     private static final Company company = Company.AMERICANAS;
+    private static final String baseUrl = "https://www.americanas.com.br";
 
     public ScrapingResponse execute() throws Exception {
 
         ScrapingResponse response = ScrapingResponse.build();
 
-        String baseUrl = "https://www.americanas.com.br/";
+        HtmlPage page = webClient.getPage(baseUrl);
 
-        WebDriverManager.chromedriver().setup();
-        var browser = new ChromeDriver();
+        List<String> linkCategorias = page.getAnchors().stream()
+                .map(a -> a.getHrefAttribute()
+                        .split("\\?")[0])
+                .filter(link -> link.contains("/categoria/"))
+                .map(link -> {
+                    var array = link.split("/");
+                    return String.format("%s%s%s", baseUrl, "/categoria/", array[4]);
+                })
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
 
-        try {
-            browser.get(baseUrl);
+        List<String> xPaths = new ArrayList<>();
+        xPaths.add("/html/body/div[2]/div[1]/div[1]/div[1]/a[*]"); // Celulares e smartphones
+        xPaths.add("/html/body/div[3]/div[1]/div[1]/div[1]/a[*]"); // Moda
+        xPaths.add("/html/body/div[4]/div[1]/div[1]/div[1]/a[*]"); // Utilidades domesticas
+        xPaths.add("//*[@id=\"rsyswpsdk\"]/div[1]/main/div[1]/div[2]/div[1]/div[1]/div[1]/a[*]"); // Eletrodomesticos
 
-            var r = browser.findElement(new By.ByXPath("//*[@id=\"rsyswpsdk\"]/div/header/div[1]/div[2]/main/div[1]/div[1]/div/button"));
-
-            r.click();
-
-            var s = r.findElement(new By.ByXPath("//*[@id=\"rsyswpsdk\"]/div/header/div[1]/div[2]/main/div[1]/div[2]/div/section[1]/ul/li[1]/a"));
-
-            s.click();
-
-            Thread.sleep(5_000);
-        } finally {
-
-            browser.quit();
+        List<String> subcategorias = new ArrayList<>();
+        for (var link : linkCategorias) {
+            executeCategoria(link, xPaths, subcategorias);
         }
 
-//        HtmlPage page = webClient.getPage(baseUrl);
-//
-//        List<HtmlAnchor> departamentos = page.getByXPath("//*[@id=\"__next\"]/div/main/section[1]/div[2]/header/div/div[3]/nav/ul/li[1]/div[2]/div/div/div[1]/ul/li[*]/a");
+        List<String> linkSubcategorias = subcategorias.stream()
+                .distinct()
+                .map(i -> baseUrl + i)
+                .sorted()
+                .collect(Collectors.toList());
 
-//        var itens = departamentos.stream()
-//                .collect(Collectors.toMap(e -> e.getHrefAttribute(), e -> e.asNormalizedText()));
-//
-//        List<Future<List<ScrapingItem>>> futures = new ArrayList<>();
-//        ExecutorService executor = Executors.newFixedThreadPool(10);
-//
-//        for (var item : itens.entrySet()) {
-//
-//            String link = item.getKey();
-//            String deptName = item.getValue();
-//
-//            response.addAll(executeDept(link, deptName));
-//
-////            Future<List<ScrapingItem>> future = executor.submit(() -> executeDept(link, deptName));
-////            futures.add(future);
+//        for (var map : linkCategoriasListagem.entrySet()) {
+//            var link = map.getKey();
+//            var deptName = map.getValue();
+//            response.addAll(
+//                    executeDept(link, deptName));
 //        }
-//
-////        executor.shutdown();
-////
-////        futures.forEach(f -> {
-////            try {
-////                response.addAll(f.get());
-////            } catch (Exception e) {
-////                e.printStackTrace();
-////            }
-////        });
-//
-//        System.out.println(String.format("Result: %s", response.getItens().size()));
+
+        linkSubcategorias.forEach(System.out::println);
 
         return response;
     }
 
-//    private List<ScrapingItem> executeDept(String link, String deptName) throws InterruptedException {
-//
-//        List<ScrapingItem> result = new ArrayList<>();
-//        HtmlPage page;
-//
+    private void executeCategoria(String link, List<String> xPaths, List<String> linkCategoriasListagem) throws Exception {
+
+        HtmlPage p = webClient.getPage(link);
+        System.out.println(link);
+
+        boolean asContentByXPath = false;
+        for (var xPath : xPaths) {
+            boolean foundXPath = executeXPath(p, xPath, linkCategoriasListagem);
+            asContentByXPath = asContentByXPath || foundXPath;
+        }
+
+        if (!asContentByXPath)
+            log.warn("Categorias não encontradas na página ".concat(link));
+    }
+
+    private boolean executeXPath(HtmlPage p, String xPath, List<String> linkCategoriasListagem) {
+
+        try {
+            List<HtmlAnchor> categorias = p.getByXPath(xPath);
+
+            List<String> cat = categorias.stream()
+                    .map(i -> i.getHrefAttribute())
+                    .filter(i -> i.contains("/categoria/"))
+                    .collect(Collectors.toList());
+
+            linkCategoriasListagem.addAll(cat);
+
+            return !CollectionUtils.isEmpty(cat);
+
+        } catch (Exception e) {
+            log.warn("", e);
+        }
+        return false;
+    }
+
+    private List<ScrapingItemDto> executeDept(String link, String deptName) throws Exception {
+
+        List<ScrapingItemDto> result = new ArrayList<>();
+
 //        int numberPage = 1;
 //        boolean goToNextPage = true;
 //        int retry = 1;
 //
 //        while (goToNextPage) {
-//            String linkPaginado = String.format("%s%s%s", link, "?page=", numberPage);
-//            System.out.println(linkPaginado);
+//            System.out.println(link);
 //            try {
-//                page = webClient.getPage(linkPaginado);
+//                HtmlPage page = webClient.getPage(link);
 //
 //                List<HtmlDivision> produtos = page.getByXPath("//div[@data-testid=\"product-card-content\"]");
 //
@@ -101,7 +131,7 @@ public class ScrapingAmericanas {
 //
 //                    var descricaoPreco = p.asNormalizedText();
 //
-//                    result.add(ScrapingItem.build(company, deptName, productName, parsePrice(descricaoPreco)));
+//                    result.add(ScrapingItemDto.build(company, deptName, productName, parsePrice(descricaoPreco)));
 //                }
 //
 //                goToNextPage = !CollectionUtils.isEmpty(produtos);
@@ -118,13 +148,13 @@ public class ScrapingAmericanas {
 //                goToNextPage = false;
 //            }
 //        }
-//
-//        return result;
-//    }
-//
-//    private BigDecimal parsePrice(String priceAsString) {
-//        priceAsString = priceAsString.replaceAll("[^0-9,]", "")
-//                .replaceAll(",", ".");
-//        return new BigDecimal(priceAsString);
-//    }
+
+        return result;
+    }
+
+    private BigDecimal parsePrice(String priceAsString) {
+        priceAsString = priceAsString.replaceAll("[^0-9,]", "")
+                .replaceAll(",", ".");
+        return new BigDecimal(priceAsString);
+    }
 }
