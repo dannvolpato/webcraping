@@ -9,9 +9,10 @@ import java.util.List;
 @Getter
 public class ScrapingResponse {
 
-    private List<ScrapingItemDto> itens = new ArrayList<>();
+    private List<ScrapingItemDto> itens;
 
     private ScrapingResponse() {
+        itens = new ArrayList<>();
     }
 
     public static ScrapingResponse build() {

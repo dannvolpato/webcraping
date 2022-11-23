@@ -14,6 +14,10 @@ public class ScrapingItemDto {
 
     private Company company;
     private String deptName;
+    private String deptCode;
     private String productName;
     private BigDecimal price;
+    private String installment;
+    private String pix;
+    private String urlProduct;
 }

@@ -1,11 +1,11 @@
 package br.com.gredom.webscraping.usecase.scraping;
 
-import br.com.gredom.webscraping.dto.ScrapingItemDto;
 import br.com.gredom.webscraping.enums.Company;
 import br.com.gredom.webscraping.response.ScrapingResponse;
-import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.WebClient;
-import com.gargoylesoftware.htmlunit.html.*;
+import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
+import com.gargoylesoftware.htmlunit.html.HtmlDivision;
+import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,10 +21,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ScrapingAmericanas {
 
-    private final WebClient webClient;
-
     private static final Company company = Company.AMERICANAS;
     private static final String baseUrl = "https://www.americanas.com.br";
+    private final WebClient webClient;
 
     public ScrapingResponse execute() throws Exception {
 
@@ -61,14 +60,9 @@ public class ScrapingAmericanas {
                 .sorted()
                 .collect(Collectors.toList());
 
-//        for (var map : linkCategoriasListagem.entrySet()) {
-//            var link = map.getKey();
-//            var deptName = map.getValue();
-//            response.addAll(
-//                    executeDept(link, deptName));
-//        }
-
-        linkSubcategorias.forEach(System.out::println);
+        for (var link : linkSubcategorias) {
+            executeDept(link, response);
+        }
 
         return response;
     }
@@ -103,16 +97,24 @@ public class ScrapingAmericanas {
             return !CollectionUtils.isEmpty(cat);
 
         } catch (Exception e) {
-            log.warn("", e);
+            log.info("", e);
         }
         return false;
     }
 
-    private List<ScrapingItemDto> executeDept(String link, String deptName) throws Exception {
+    private void executeDept(String link, ScrapingResponse response) throws Exception {
 
-        List<ScrapingItemDto> result = new ArrayList<>();
+        HtmlPage p = webClient.getPage(link);
 
-//        int numberPage = 1;
+        List<HtmlDivision> divsProdutos = p.getByXPath("//*[@id=\"rsyswpsdk\"]/div/main/div/div[3]/div[2]/div[*]");
+
+
+
+        for (var div : divsProdutos) {
+
+        }
+
+        //        int numberPage = 1;
 //        boolean goToNextPage = true;
 //        int retry = 1;
 //
@@ -149,7 +151,6 @@ public class ScrapingAmericanas {
 //            }
 //        }
 
-        return result;
     }
 
     private BigDecimal parsePrice(String priceAsString) {
