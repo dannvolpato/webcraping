@@ -1,2 +1,9 @@
 server:
   port: 8099
+
+application:
+  scraping:
+    magalu:
+      name: magalu
+      homepage: https://www.magazineluiza.com.br
+      path-index-json: /_next/data/ANMJ5oyFQauekGB4R7wwh

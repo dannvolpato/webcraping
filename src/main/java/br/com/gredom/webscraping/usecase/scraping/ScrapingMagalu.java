@@ -38,7 +38,6 @@ public class ScrapingMagalu {
         List<HtmlAnchor> departamentos = page.getByXPath("//*[@id=\"__next\"]/div/main/section[1]/div[2]/header/div/div[3]/nav/ul/li[1]/div[2]/div/div/div[1]/ul/li[*]/a");
 
         Map<String, String> itens = departamentos.stream()
-                .filter(entry -> entry.getHrefAttribute().contains("eletrodomesticos"))
                 .collect(Collectors.toMap(e -> e.getHrefAttribute(), e -> e.asNormalizedText()));
 
         List<String> links = new ArrayList<>();
@@ -46,16 +45,11 @@ public class ScrapingMagalu {
 
             String link = url.getKey();
             String deptCode = link.split("/")[3];
-
             links.addAll(
                     findSubCategories(link, deptCode));
-
-            break;
         }
         for (var link : links) {
-
             String deptCode = link.split("/")[3];
-
             response.addAll(
                     executeCategory(link, "", deptCode));
         }
@@ -73,19 +67,27 @@ public class ScrapingMagalu {
         System.out.println(link);
 
         HtmlPage page = webClient.getPage(link);
-        Map<String, String> subCategorias = page.getByXPath("//div[@data-testid=\"accordion-hierarchical-filters\"]/div[2]/ul[1]/li[*]/a[@data-testid=\"list-item\"]")
+//        Map<String, String> subCategorias = page.getByXPath("//div[@data-testid=\"accordion-hierarchical-filters\"]/div[2]/ul[1]/li[*]/a[@data-testid=\"list-item\"]")
+//                .stream()
+//                .map(i -> (HtmlAnchor) i)
+//                .filter(i -> i.getHrefAttribute().contains(String.format("/%s/", deptCode)))
+//                .collect(Collectors.toMap(a -> baseUrl + a.getHrefAttribute(), a -> a.asNormalizedText()));
+//
+//        for (var entry : subCategorias.entrySet()) {
+//            links.addAll(
+//                    findSubCategories(entry.getKey(), deptCode));
+//        }
+//
+//        if (CollectionUtils.isEmpty(subCategorias))
+//            links.add(link);
+
+        var subCategorias = page.getByXPath("//div[@data-testid=\"accordion-hierarchical-filters\"]/div[2]/ul[1]/li[*]/a[@data-testid=\"list-item\"]")
                 .stream()
-                .map(i -> (HtmlAnchor) i)
-                .filter(i -> i.getHrefAttribute().contains(String.format("/%s/", deptCode)))
-                .collect(Collectors.toMap(a -> baseUrl + a.getHrefAttribute(), a -> a.asNormalizedText()));
+                .map(i -> baseUrl + ((HtmlAnchor) i).getHrefAttribute())
+                .filter(i -> i.contains(String.format("/%s/", deptCode)))
+                .collect(Collectors.toList());
 
-        for (var entry : subCategorias.entrySet()) {
-            links.addAll(
-                    findSubCategories(entry.getKey(), deptCode));
-        }
-
-        if (CollectionUtils.isEmpty(subCategorias))
-            links.add(link);
+        links.addAll(subCategorias);
 
         return links;
     }
@@ -97,12 +99,20 @@ public class ScrapingMagalu {
         int numberPage = 1;
         boolean goToNextPage = true;
         int retry = 1;
+        int produtosEncontrados = 0;
+        int totalProdutos = 0;
 
         while (goToNextPage) {
             String linkPaginado = String.format("%s%s%s", link, "?page=", numberPage);
             System.out.println(linkPaginado);
             try {
                 HtmlPage page = webClient.getPage(linkPaginado);
+
+                if (!page.getUrl().toString().contains(linkPaginado))
+                    throw new Exception(String.format("A página recebida é diferente da página informada: %", linkPaginado));
+
+                if (numberPage == 1)
+                    totalProdutos = extractTotalProdutos(page);
 
                 List<HtmlAnchor> produtos = page.getByXPath("//a[@data-testid=\"product-card-container\"]");
 
@@ -116,7 +126,9 @@ public class ScrapingMagalu {
                     result.add(ScrapingItemDto.build(company, deptName, deptCode, productName, price, installment, pix, urlProduct));
                 }
 
-                goToNextPage = !CollectionUtils.isEmpty(produtos);
+                produtosEncontrados += produtos.size();
+
+                goToNextPage = !CollectionUtils.isEmpty(produtos) && produtosEncontrados <= totalProdutos;
 
                 numberPage++;
             } catch (FailingHttpStatusCodeException e) {
@@ -135,6 +147,17 @@ public class ScrapingMagalu {
             log.warn(String.format("Não foi possível extrair dados de produtos na página: %s", link));
 
         return result;
+    }
+
+    private int extractTotalProdutos(HtmlPage page) {
+        try {
+            HtmlParagraph pTotalProdutos = page.getFirstByXPath("//div[@data-testid=\"mod-searchheader\"]/div[1]/p");
+            return Integer.parseInt(pTotalProdutos.asNormalizedText()
+                    .replaceAll("[^0-9]", ""));
+        } catch (Exception e) {
+            log.warn("Não foi possível extrair o total de produtos encontrados", e);
+        }
+        return 0;
     }
 
     private String extractPix(HtmlAnchor produto) {
