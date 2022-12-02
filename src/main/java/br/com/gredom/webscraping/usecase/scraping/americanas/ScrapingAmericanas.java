@@ -1,4 +1,4 @@
-package br.com.gredom.webscraping.usecase.scraping;
+package br.com.gredom.webscraping.usecase.scraping.americanas;
 
 import br.com.gredom.webscraping.enums.Company;
 import br.com.gredom.webscraping.response.ScrapingResponse;

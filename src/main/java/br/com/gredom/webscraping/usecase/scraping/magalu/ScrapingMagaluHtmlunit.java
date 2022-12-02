@@ -1,4 +1,4 @@
-package br.com.gredom.webscraping.usecase.scraping;
+package br.com.gredom.webscraping.usecase.scraping.magalu;
 
 import br.com.gredom.webscraping.dto.ScrapingItemDto;
 import br.com.gredom.webscraping.enums.Company;
@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ScrapingMagalu {
+public class ScrapingMagaluHtmlunit {
 
     private static final Company company = Company.MAGALU;
     private static final String baseUrl = "https://www.magazineluiza.com.br";
@@ -31,32 +31,34 @@ public class ScrapingMagalu {
 
     public ScrapingResponse execute() throws Exception {
 
+        double start = System.currentTimeMillis();
         ScrapingResponse response = ScrapingResponse.build();
 
         HtmlPage page = webClient.getPage(baseUrl);
 
         List<HtmlAnchor> departamentos = page.getByXPath("//*[@id=\"__next\"]/div/main/section[1]/div[2]/header/div/div[3]/nav/ul/li[1]/div[2]/div/div/div[1]/ul/li[*]/a");
 
-        Map<String, String> itens = departamentos.stream()
-                .collect(Collectors.toMap(e -> e.getHrefAttribute(), e -> e.asNormalizedText()));
+        List<String> itens = departamentos.stream()
+                .map(i -> i.getHrefAttribute())
+                .collect(Collectors.toList());
 
-        List<String> links = new ArrayList<>();
-        for (var url : itens.entrySet()) {
+        for (var link : itens) {
 
-            String link = url.getKey();
-            String deptCode = link.split("/")[3];
-            links.addAll(
-                    findSubCategories(link, deptCode));
+            System.out.println(link);
+            //            links.addAll(
+//                    findSubCategories(link, ""));
         }
-        for (var link : links) {
-            String deptCode = link.split("/")[3];
-            response.addAll(
-                    executeCategory(link, "", deptCode));
-        }
+//        for (var link : links) {
+//            response.addAll(
+//                    executeCategory(link, "", ""));
+//        }
 
         gerarArquivo.execute(response);
 
-        System.out.println(String.format("Result: %s", response.getItens().size()));
+        double time = (System.currentTimeMillis() - start) / 1_000;
+        long minutes = (long) (time / 60);
+        double seconds = time - (minutes * 60);
+        System.out.println(String.format("Result: %s, duration: %s:%s", response.getItens().size(), minutes, seconds));
 
         return response;
     }
@@ -108,27 +110,28 @@ public class ScrapingMagalu {
             try {
                 HtmlPage page = webClient.getPage(linkPaginado);
 
-                if (!page.getUrl().toString().contains(linkPaginado))
-                    throw new Exception(String.format("A página recebida é diferente da página informada: %", linkPaginado));
-
-                if (numberPage == 1)
-                    totalProdutos = extractTotalProdutos(page);
-
-                List<HtmlAnchor> produtos = page.getByXPath("//a[@data-testid=\"product-card-container\"]");
-
-                for (var produto : produtos) {
-                    String productName = extractProductName(produto);
-                    BigDecimal price = extractPrice(produto);
-                    String installment = extractInstallment(produto);
-                    String pix = extractPix(produto);
-                    String urlProduct = baseUrl + produto.getHrefAttribute();
-
-                    result.add(ScrapingItemDto.build(company, deptName, deptCode, productName, price, installment, pix, urlProduct));
-                }
-
-                produtosEncontrados += produtos.size();
-
-                goToNextPage = !CollectionUtils.isEmpty(produtos) && produtosEncontrados <= totalProdutos;
+////                if (!page.getUrl().toString().contains(linkPaginado))
+////                    throw new Exception(String.format("A página recebida é diferente da página informada: %", linkPaginado));
+////
+////                if (numberPage == 1)
+////                    totalProdutos = extractTotalProdutos(page);
+////
+////                List<HtmlAnchor> produtos = page.getByXPath("//a[@data-testid=\"product-card-container\"]");
+////
+////                for (var produto : produtos) {
+////                    String productName = extractProductName(produto);
+////                    BigDecimal price = extractPrice(produto);
+////                    String installment = extractInstallment(produto);
+////                    String pix = extractPix(produto);
+////                    String urlProduct = baseUrl + produto.getHrefAttribute();
+////
+////                    result.add(ScrapingItemDto.build(company, deptName, deptCode, productName, price, installment, pix, urlProduct));
+////                }
+////
+////                produtosEncontrados += produtos.size();
+//
+//                goToNextPage = !CollectionUtils.isEmpty(produtos) && produtosEncontrados <= totalProdutos;
+//                goToNextPage = !CollectionUtils.isEmpty(produtos) && produtosEncontrados <= totalProdutos;
 
                 numberPage++;
             } catch (FailingHttpStatusCodeException e) {

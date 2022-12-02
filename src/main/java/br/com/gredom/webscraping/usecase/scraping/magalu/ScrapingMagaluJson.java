@@ -1,4 +1,4 @@
-package br.com.gredom.webscraping.usecase.scraping.impl;
+package br.com.gredom.webscraping.usecase.scraping.magalu;
 
 import br.com.gredom.webscraping.dto.ScrapingItemDto;
 import br.com.gredom.webscraping.enums.Company;

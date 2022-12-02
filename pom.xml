@@ -32,12 +32,14 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
             <version>3.1.5</version>
         </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.24</version>
             <optional>true</optional>
         </dependency>
+
         <dependency>
             <groupId>net.sourceforge.htmlunit</groupId>
             <artifactId>htmlunit</artifactId>
