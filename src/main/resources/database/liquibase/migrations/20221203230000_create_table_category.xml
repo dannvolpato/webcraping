@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.5.xsd">
+
+    <changeSet id="20221203230000" author="danielvolpato">
+        <createTable tableName="category">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="company" type="varchar(120)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="name" type="varchar(200)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="url" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="st_url" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="level" type="int(2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="id_parent" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="category" baseColumnNames="id_parent"
+                                 constraintName="fk_category_id_parent"
+                                 referencedTableName="category" referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog>

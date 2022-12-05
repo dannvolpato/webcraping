@@ -7,3 +7,18 @@ application:
       name: magalu
       homepage: https://www.magazineluiza.com.br
       path-index-json: /_next/data/ANMJ5oyFQauekGB4R7wwh
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/webscraping
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jackson:
+    default-property-inclusion: non_null
+  jpa:
+    properties:
+      hibernate:
+        show_sql: true
+  liquibase:
+    change-log: classpath:/database/liquibase/changelog-master.xml

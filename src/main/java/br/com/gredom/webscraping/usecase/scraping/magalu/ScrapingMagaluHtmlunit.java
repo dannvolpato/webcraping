@@ -1,21 +1,26 @@
 package br.com.gredom.webscraping.usecase.scraping.magalu;
 
-import br.com.gredom.webscraping.dto.ScrapingItemDto;
+import br.com.gredom.webscraping.entity.CategoryEntity;
 import br.com.gredom.webscraping.enums.Company;
+import br.com.gredom.webscraping.enums.StatusUrl;
+import br.com.gredom.webscraping.repository.CategoryRepository;
 import br.com.gredom.webscraping.response.ScrapingResponse;
 import br.com.gredom.webscraping.util.GerarArquivo;
+import br.com.gredom.webscraping.util.Strings;
+import com.gargoylesoftware.htmlunit.BrowserVersion;
 import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.WebClient;
-import com.gargoylesoftware.htmlunit.html.*;
+import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
+import com.gargoylesoftware.htmlunit.html.HtmlPage;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.math.BigInteger;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,188 +30,299 @@ public class ScrapingMagaluHtmlunit {
 
     private static final Company company = Company.MAGALU;
     private static final String baseUrl = "https://www.magazineluiza.com.br";
+    private final CategoryRepository categoryRepository;
 
-    private final WebClient webClient;
     private final GerarArquivo gerarArquivo;
 
     public ScrapingResponse execute() throws Exception {
-
         double start = System.currentTimeMillis();
+
         ScrapingResponse response = ScrapingResponse.build();
 
-        HtmlPage page = webClient.getPage(baseUrl);
+        WebClient webClient = new WebClient(BrowserVersion.CHROME);
+        webClient.getOptions().setCssEnabled(false);
+        webClient.getOptions().setJavaScriptEnabled(false);
 
-        List<HtmlAnchor> departamentos = page.getByXPath("//*[@id=\"__next\"]/div/main/section[1]/div[2]/header/div/div[3]/nav/ul/li[1]/div[2]/div/div/div[1]/ul/li[*]/a");
+        var inputsDept = scrapingDepartaments(webClient);
 
-        List<String> itens = departamentos.stream()
-                .map(i -> i.getHrefAttribute())
-                .collect(Collectors.toList());
+        save(inputsDept);
 
-        for (var link : itens) {
+        for (var map : inputsDept.entrySet()) {
 
-            System.out.println(link);
-            //            links.addAll(
-//                    findSubCategories(link, ""));
+            String urlCategory = map.getKey();
+            String code = urlCategory.split("/")[3];
+            List<UrlDto> allCategories = new ArrayList<>();
+            allCategories.addAll(
+                    scrapingCategories(webClient, urlCategory, code));
         }
-//        for (var link : links) {
-//            response.addAll(
-//                    executeCategory(link, "", ""));
-//        }
 
-        gerarArquivo.execute(response);
-
-        double time = (System.currentTimeMillis() - start) / 1_000;
-        long minutes = (long) (time / 60);
-        double seconds = time - (minutes * 60);
-        System.out.println(String.format("Result: %s, duration: %s:%s", response.getItens().size(), minutes, seconds));
+//
+//        gerarArquivo.execute(response);
+//
+//        double time = (System.currentTimeMillis() - start) / 1_000;
+//        long minutes = (long) (time / 60);
+//        double seconds = time - (minutes * 60);
+//        System.out.printf("Result: %s, duration: %s:%s%n", response.getItens().size(), minutes, seconds);
 
         return response;
     }
 
-    private List<String> findSubCategories(String link, String deptCode) throws Exception {
+    private Map<String, String> scrapingDepartaments(WebClient webClient) throws Exception {
 
-        List<String> links = new ArrayList<>();
-        System.out.println(link);
+        Map<String, String> depts = new HashMap<>();
+        HtmlPage page = getPage(webClient, baseUrl)
+                .orElse(null);
+        if (page == null)
+            return depts;
 
-        HtmlPage page = webClient.getPage(link);
-//        Map<String, String> subCategorias = page.getByXPath("//div[@data-testid=\"accordion-hierarchical-filters\"]/div[2]/ul[1]/li[*]/a[@data-testid=\"list-item\"]")
-//                .stream()
-//                .map(i -> (HtmlAnchor) i)
-//                .filter(i -> i.getHrefAttribute().contains(String.format("/%s/", deptCode)))
-//                .collect(Collectors.toMap(a -> baseUrl + a.getHrefAttribute(), a -> a.asNormalizedText()));
-//
-//        for (var entry : subCategorias.entrySet()) {
-//            links.addAll(
-//                    findSubCategories(entry.getKey(), deptCode));
-//        }
-//
-//        if (CollectionUtils.isEmpty(subCategorias))
-//            links.add(link);
-
-        var subCategorias = page.getByXPath("//div[@data-testid=\"accordion-hierarchical-filters\"]/div[2]/ul[1]/li[*]/a[@data-testid=\"list-item\"]")
+        depts = page.getByXPath("//*[@id=\"__next\"]/div/main/section[1]/div[2]/header/div/div[3]/nav/ul/li[1]/div[2]/div/div/div[1]/ul/li[*]/a")
                 .stream()
-                .map(i -> baseUrl + ((HtmlAnchor) i).getHrefAttribute())
-                .filter(i -> i.contains(String.format("/%s/", deptCode)))
+                .map(i -> (HtmlAnchor) i)
+                .filter(i -> i.getHrefAttribute().contains(baseUrl))
+                .collect(Collectors.toMap(i -> i.getHrefAttribute().split("\\?")[0], i -> i.asNormalizedText(), (a, b) -> a));
+
+        return depts;
+    }
+
+    private List<UrlDto> scrapingCategories(WebClient webClient, String url, String code) throws Exception {
+
+        List<UrlDto> categories = new ArrayList<>();
+
+        HtmlPage page = getPage(webClient, url).orElse(null);
+
+        if (page == null) return categories;
+
+        if (!page.getUrl().toString().equals(url)) {
+            log.info(String.format("Página solicitada: %s, página recebida: %s", url, page.getUrl().toString()));
+            return categories;
+        }
+
+        List<UrlDto> subCategories = page.getByXPath("//div[@data-testid=\"accordion-hierarchical-filters\"]/div[2]/ul[1]/li[*]/a[@data-testid=\"list-item\"]")
+                .stream()
+                .map(i -> ((HtmlAnchor) i))
+                .filter(i -> i.getHrefAttribute().contains(String.format("/%s/", code)))
+                .collect(Collectors.toMap(i -> baseUrl + i.getHrefAttribute().split("\\?")[0], i -> i.asNormalizedText(), (a, b) -> a))
+                .entrySet().stream()
+                .map(m -> new UrlDto(m.getKey(), m.getValue(), url))
                 .collect(Collectors.toList());
 
-        links.addAll(subCategorias);
+        log.info(String.format("%s %s", url, subCategories.size()));
 
-        return links;
-    }
+        save(subCategories);
 
-    private List<ScrapingItemDto> executeCategory(String link, String deptName, String deptCode) throws InterruptedException {
+        categories.addAll(subCategories);
+        for (var item : subCategories) {
+            if (!url.equals(item.getUrl()))
+                categories.addAll(
+                        scrapingCategories(webClient, item.getUrl(), code));
+        }
 
-        List<ScrapingItemDto> result = new ArrayList<>();
-
-        int numberPage = 1;
-        boolean goToNextPage = true;
-        int retry = 1;
-        int produtosEncontrados = 0;
-        int totalProdutos = 0;
-
-        while (goToNextPage) {
-            String linkPaginado = String.format("%s%s%s", link, "?page=", numberPage);
-            System.out.println(linkPaginado);
-            try {
-                HtmlPage page = webClient.getPage(linkPaginado);
-
-////                if (!page.getUrl().toString().contains(linkPaginado))
-////                    throw new Exception(String.format("A página recebida é diferente da página informada: %", linkPaginado));
-////
-////                if (numberPage == 1)
-////                    totalProdutos = extractTotalProdutos(page);
-////
-////                List<HtmlAnchor> produtos = page.getByXPath("//a[@data-testid=\"product-card-container\"]");
-////
-////                for (var produto : produtos) {
-////                    String productName = extractProductName(produto);
-////                    BigDecimal price = extractPrice(produto);
-////                    String installment = extractInstallment(produto);
-////                    String pix = extractPix(produto);
-////                    String urlProduct = baseUrl + produto.getHrefAttribute();
-////
-////                    result.add(ScrapingItemDto.build(company, deptName, deptCode, productName, price, installment, pix, urlProduct));
-////                }
-////
-////                produtosEncontrados += produtos.size();
+        return categories;
+//    }
 //
-//                goToNextPage = !CollectionUtils.isEmpty(produtos) && produtosEncontrados <= totalProdutos;
-//                goToNextPage = !CollectionUtils.isEmpty(produtos) && produtosEncontrados <= totalProdutos;
+//    private List<ScrapingItemDto> executeCategory(String link, String deptName, String deptCode) throws InterruptedException {
+//
+//        List<ScrapingItemDto> result = new ArrayList<>();
+//
+//        int numberPage = 1;
+//        boolean goToNextPage = true;
+//        int retry = 1;
+//        int produtosEncontrados = 0;
+//        int totalProdutos = 0;
+//
+//        while (goToNextPage) {
+//            String linkPaginado = String.format("%s%s%s", link, "?page=", numberPage);
+//            System.out.println(linkPaginado);
+//            try {
+//                HtmlPage page = webClient.getPage(linkPaginado);
+//
+//////                if (!page.getUrl().toString().contains(linkPaginado))
+//////                    throw new Exception(String.format("A página recebida é diferente da página informada: %", linkPaginado));
+//////
+//////                if (numberPage == 1)
+//////                    totalProdutos = extractTotalProdutos(page);
+//////
+//////                List<HtmlAnchor> produtos = page.getByXPath("//a[@data-testid=\"product-card-container\"]");
+//////
+//////                for (var produto : produtos) {
+//////                    String productName = extractProductName(produto);
+//////                    BigDecimal price = extractPrice(produto);
+//////                    String installment = extractInstallment(produto);
+//////                    String pix = extractPix(produto);
+//////                    String urlProduct = baseUrl + produto.getHrefAttribute();
+//////
+//////                    result.add(ScrapingItemDto.build(company, deptName, deptCode, productName, price, installment, pix, urlProduct));
+//////                }
+//////
+//////                produtosEncontrados += produtos.size();
+////
+////                goToNextPage = !CollectionUtils.isEmpty(produtos) && produtosEncontrados <= totalProdutos;
+////                goToNextPage = !CollectionUtils.isEmpty(produtos) && produtosEncontrados <= totalProdutos;
+//
+//                numberPage++;
+//            } catch (FailingHttpStatusCodeException e) {
+//                if (e.getStatusCode() != 404 && retry < 3) {
+//                    Thread.sleep(2_000);
+//                } else
+//                    goToNextPage = false;
+//
+//                retry++;
+//            } catch (Exception e) {
+//                goToNextPage = false;
+//            }
+//        }
+//
+//        if (CollectionUtils.isEmpty(result))
+//            log.warn(String.format("Não foi possível extrair dados de produtos na página: %s", link));
+//
+//        return result;
+//    }
+//
+//    private int extractTotalProdutos(HtmlPage page) {
+//        try {
+//            HtmlParagraph pTotalProdutos = page.getFirstByXPath("//div[@data-testid=\"mod-searchheader\"]/div[1]/p");
+//            return Integer.parseInt(pTotalProdutos.asNormalizedText()
+//                    .replaceAll("[^0-9]", ""));
+//        } catch (Exception e) {
+//            log.warn("Não foi possível extrair o total de produtos encontrados", e);
+//        }
+//        return 0;
+//    }
+//
+//    private String extractPix(HtmlAnchor produto) {
+//        try {
+//            HtmlSpan sPix = produto.getFirstByXPath(".//span[2]");
+//            return sPix.asNormalizedText().replaceAll("[()]", "");
+//        } catch (Exception e) {
+//        }
+//        return null;
+//    }
+//
+//    private String extractInstallment(HtmlAnchor produto) {
+//        try {
+//            HtmlParagraph pInstallment = produto.getFirstByXPath(".//p[@data-testid=\"installment\"]");
+//            return pInstallment.asNormalizedText();
+//        } catch (Exception e) {
+//        }
+//        return null;
+//    }
+//
+//    private BigDecimal extractPrice(HtmlAnchor produto) {
+//        try {
+//            HtmlParagraph p = produto.getFirstByXPath(".//p[@data-testid=\"price-value\"]");
+//            var descricaoPreco = p.asNormalizedText();
+//            return parsePrice(descricaoPreco);
+//        } catch (Exception e) {
+//        }
+//        return null;
+//    }
+//
+//    private String extractProductName(HtmlAnchor produto) {
+//        try {
+//            HtmlHeading2 h2 = produto.getFirstByXPath(".//h2[@data-testid=\"product-title\"]");
+//            return h2.asNormalizedText();
+//        } catch (Exception e) {
+//        }
+//        return null;
+//    }
+//
+//    private BigDecimal parsePrice(String priceAsString) {
+//        try {
+//            priceAsString = priceAsString.replaceAll("[^0-9,]", "")
+//                    .replaceAll(",", ".");
+//            return new BigDecimal(priceAsString);
+//        } catch (Exception e) {
+//        }
+//        return null;
+//    }
+    }
 
-                numberPage++;
+    private Optional<HtmlPage> getPage(WebClient webClient, String url) throws Exception {
+        HtmlPage page = null;
+
+        int sleep = 3;
+        int retry = 0;
+        while (page == null && retry < 5) {
+            try {
+                page = webClient.getPage(url);
             } catch (FailingHttpStatusCodeException e) {
-                if (e.getStatusCode() != 404 && retry < 3) {
-                    Thread.sleep(2_000);
-                } else
-                    goToNextPage = false;
-
-                retry++;
-            } catch (Exception e) {
-                goToNextPage = false;
+                log.info("retry " + url);
+                Thread.sleep(sleep * 1_000);
+                sleep += 2;
             }
+            retry++;
         }
 
-        if (CollectionUtils.isEmpty(result))
-            log.warn(String.format("Não foi possível extrair dados de produtos na página: %s", link));
-
-        return result;
+        return Optional.ofNullable(page);
     }
 
-    private int extractTotalProdutos(HtmlPage page) {
-        try {
-            HtmlParagraph pTotalProdutos = page.getFirstByXPath("//div[@data-testid=\"mod-searchheader\"]/div[1]/p");
-            return Integer.parseInt(pTotalProdutos.asNormalizedText()
-                    .replaceAll("[^0-9]", ""));
-        } catch (Exception e) {
-            log.warn("Não foi possível extrair o total de produtos encontrados", e);
-        }
-        return 0;
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private void save(List<UrlDto> subCategories) {
+
+        subCategories.forEach(category -> {
+
+            String name = category.getName();
+            String url = category.getUrl();
+            BigInteger level = BigInteger.ZERO;
+
+            CategoryEntity parent = null;
+            if (Strings.nonBlank(category.getUrlParent()))
+                parent = categoryRepository.findByUrl(category.getUrlParent()).orElse(null);
+
+            if (parent != null)
+                level = parent.getLevel().add(BigInteger.ONE);
+
+            CategoryEntity cat = categoryRepository.findByUrl(url)
+                    .orElse(new CategoryEntity());
+
+            cat.modify(company,
+                    name,
+                    url,
+                    StatusUrl.ACTIVE,
+                    level,
+                    parent);
+
+            categoryRepository.save(cat);
+
+        });
+
     }
 
-    private String extractPix(HtmlAnchor produto) {
-        try {
-            HtmlSpan sPix = produto.getFirstByXPath(".//span[2]");
-            return sPix.asNormalizedText().replaceAll("[()]", "");
-        } catch (Exception e) {
-        }
-        return null;
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private void save(Map<String, String> categoriesInput) {
+
+        categoriesInput.entrySet().forEach(entry -> {
+
+            String name = entry.getValue();
+            String url = entry.getKey();
+            BigInteger level = BigInteger.ZERO;
+
+            CategoryEntity cat = categoryRepository.findByUrl(url)
+                    .orElse(new CategoryEntity());
+
+            CategoryEntity parent = null;
+
+            cat.modify(company,
+                    name,
+                    url,
+                    StatusUrl.ACTIVE,
+                    level,
+                    parent);
+
+            categoryRepository.save(cat);
+        });
     }
 
-    private String extractInstallment(HtmlAnchor produto) {
-        try {
-            HtmlParagraph pInstallment = produto.getFirstByXPath(".//p[@data-testid=\"installment\"]");
-            return pInstallment.asNormalizedText();
-        } catch (Exception e) {
+    @Getter
+    private class UrlDto {
+        public UrlDto(String url, String name, String urlParent) {
+            this.url = url;
+            this.name = name;
+            this.urlParent = urlParent;
         }
-        return null;
-    }
 
-    private BigDecimal extractPrice(HtmlAnchor produto) {
-        try {
-            HtmlParagraph p = produto.getFirstByXPath(".//p[@data-testid=\"price-value\"]");
-            var descricaoPreco = p.asNormalizedText();
-            return parsePrice(descricaoPreco);
-        } catch (Exception e) {
-        }
-        return null;
-    }
-
-    private String extractProductName(HtmlAnchor produto) {
-        try {
-            HtmlHeading2 h2 = produto.getFirstByXPath(".//h2[@data-testid=\"product-title\"]");
-            return h2.asNormalizedText();
-        } catch (Exception e) {
-        }
-        return null;
-    }
-
-    private BigDecimal parsePrice(String priceAsString) {
-        try {
-            priceAsString = priceAsString.replaceAll("[^0-9,]", "")
-                    .replaceAll(",", ".");
-            return new BigDecimal(priceAsString);
-        } catch (Exception e) {
-        }
-        return null;
+        private String name;
+        private String url;
+        private String urlParent;
     }
 }

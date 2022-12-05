@@ -20,17 +20,25 @@ public class GerarArquivo {
     private static String separador = ";";
 
     public void execute(ScrapingResponse input) throws Exception {
-
         LocalDateTime agora = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
 
-        File dir = new File("temp");
         String filename = String.format("price_%s.txt", agora)
-                .replaceAll("[:-]", "");
+                .replaceAll("[^0-9T]", "");
+
+        execute(input, filename, false);
+
+    }
+
+    private void execute(ScrapingResponse input, String filename, boolean append) throws Exception {
+
+        File dir = new File("temp");
         File arq = new File(dir, filename);
+
+        if (!dir.exists()) dir.mkdir();
 
         arq.createNewFile();
 
-        FileWriter fileWriter = new FileWriter(arq, false);
+        FileWriter fileWriter = new FileWriter(arq, append);
 
         PrintWriter printWriter = new PrintWriter(fileWriter);
 
