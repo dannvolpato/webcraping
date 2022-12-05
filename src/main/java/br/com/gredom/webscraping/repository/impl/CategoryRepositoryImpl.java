@@ -5,6 +5,7 @@ import br.com.gredom.webscraping.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -21,5 +22,10 @@ class CategoryRepositoryImpl implements CategoryRepository {
     @Override
     public Optional<CategoryEntity> findByUrl(String url) {
         return categoryJpaRepository.findByUrl(url);
+    }
+
+    @Override
+    public List<CategoryEntity> findSelecteds(String orderBy, int offset, int limit) {
+        return categoryJpaRepository.findSelecteds(orderBy, offset, limit);
     }
 }

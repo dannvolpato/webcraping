@@ -22,11 +22,19 @@
                 <constraints nullable="false"/>
             </column>
 
-            <column name="st_url" type="varchar(50)">
+            <column name="level" type="int(2)">
                 <constraints nullable="false"/>
             </column>
 
-            <column name="level" type="int(2)">
+            <column name="selected" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="created" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="updated" type="timestamp">
                 <constraints nullable="false"/>
             </column>
 

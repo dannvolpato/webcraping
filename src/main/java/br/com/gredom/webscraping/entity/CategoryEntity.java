@@ -1,15 +1,19 @@
 package br.com.gredom.webscraping.entity;
 
 import br.com.gredom.webscraping.enums.Company;
-import br.com.gredom.webscraping.enums.StatusUrl;
 import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import javax.persistence.*;
 import java.math.BigInteger;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "category")
 @Getter
+@Setter
 public class CategoryEntity {
 
     @Id
@@ -23,11 +27,15 @@ public class CategoryEntity {
 
     private String url;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "st_url")
-    private StatusUrl statusUrl;
-
     private BigInteger level;
+
+    private Boolean selected;
+
+    @CreationTimestamp
+    private OffsetDateTime created;
+
+    @UpdateTimestamp
+    private OffsetDateTime updated;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_parent", referencedColumnName = "id")
@@ -36,21 +44,19 @@ public class CategoryEntity {
     public CategoryEntity() {
     }
 
-    public CategoryEntity(Company company, String name, String url, StatusUrl statusUrl, BigInteger level, CategoryEntity parent) {
+    public CategoryEntity(Company company, String url, boolean selected) {
+        this.company = company;
+        this.url = url;
+        this.selected = selected;
+    }
+
+    public CategoryEntity(Company company, String name, String url, BigInteger level, boolean selected, CategoryEntity parent) {
         this.company = company;
         this.name = name;
         this.url = url;
-        this.statusUrl = statusUrl;
         this.level = level;
+        this.selected = selected;
         this.parent = parent;
     }
 
-    public void modify(Company company, String name, String url, StatusUrl statusUrl, BigInteger level, CategoryEntity parent) {
-        this.company = company;
-        this.name = name;
-        this.url = url;
-        this.statusUrl = statusUrl;
-        this.level = level;
-        this.parent = parent;
-    }
 }

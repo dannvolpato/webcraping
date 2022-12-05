@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.5.xsd">
+
+    <changeSet id="202212051900" author="danielvolpato">
+
+        <createTable tableName="item_category">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="company" type="varchar(120)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="description" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="id_category" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="original_price" type="currency">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="installment" type="varchar(120)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="best_price" type="currency">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="best_price_method" type="varchar(120)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="url_item" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="created" type="timestamp(3)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="updated" type="timestamp(3)">
+                <constraints nullable="false"/>
+            </column>
+
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="item_category" baseColumnNames="id_category"
+                                 constraintName="fk_item_category_id_category"
+                                 referencedTableName="category" referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog>
