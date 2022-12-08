@@ -56,7 +56,7 @@ public class ScrapingMagaluHtmlunit {
 
             String urlCategory = map.getKey();
             String code = urlCategory.split("/")[3];
-            List<UrlDto> allCategories = new ArrayList<>();
+            List<CategoryDto> allCategories = new ArrayList<>();
             allCategories.addAll(
                     scrapingCategories(webClient, urlCategory, code));
         }
@@ -77,35 +77,33 @@ public class ScrapingMagaluHtmlunit {
         Map<String, String> depts = new HashMap<>();
         HtmlPage page = getPage(webClient, baseUrl)
                 .orElse(null);
-        if (page == null)
-            return depts;
+        if (page == null) return depts;
 
         depts = page.getByXPath("//*[@id=\"__next\"]/div/main/section[1]/div[2]/header/div/div[3]/nav/ul/li[1]/div[2]/div/div/div[1]/ul/li[*]/a")
                 .stream()
                 .map(i -> (HtmlAnchor) i)
                 .filter(i -> i.getHrefAttribute().contains(baseUrl))
-                .filter(i -> i.getHrefAttribute().contains("/eletrodomesticos/"))
+//                .filter(i -> i.getHrefAttribute().contains("/eletrodomesticos/"))
                 .collect(Collectors.toMap(i -> i.getHrefAttribute().split("\\?")[0], i -> i.asNormalizedText(), (a, b) -> a));
 
         return depts;
     }
 
-    private List<UrlDto> scrapingCategories(WebClient webClient, String url, String code) throws Exception {
+    private List<CategoryDto> scrapingCategories(WebClient webClient, String url, String code) throws Exception {
 
-        List<UrlDto> categories = new ArrayList<>();
+        List<CategoryDto> categories = new ArrayList<>();
 
         HtmlPage page = getPage(webClient, url).orElse(null);
 
         if (page == null) return categories;
 
-        List<UrlDto> subCategories = page.getByXPath("//div[@data-testid=\"accordion-hierarchical-filters\"]/div[2]/ul[1]/li[*]/a[@data-testid=\"list-item\"]")
+        List<CategoryDto> subCategories = page.getByXPath("//div[@data-testid=\"accordion-hierarchical-filters\"]/div[2]/ul[1]/li[*]/a[@data-testid=\"list-item\"]")
                 .stream()
                 .map(i -> ((HtmlAnchor) i))
                 .filter(i -> i.getHrefAttribute().contains(String.format("/%s/", code)))
-                .filter(i -> i.getHrefAttribute().contains("/geladeira-refrigerador/eletrodomesticos/"))
                 .collect(Collectors.toMap(i -> baseUrl + i.getHrefAttribute().split("\\?")[0], i -> i.asNormalizedText(), (a, b) -> a))
                 .entrySet().stream()
-                .map(m -> new UrlDto(m.getKey(), m.getValue(), url))
+                .map(m -> new CategoryDto(m.getKey(), m.getValue(), url))
                 .collect(Collectors.toList());
 
         log.info(String.format("%s %s", url, subCategories.size()));
@@ -127,7 +125,7 @@ public class ScrapingMagaluHtmlunit {
         int numberPage = 1;
         boolean tryNextPage = true;
 
-        List<ItemDto> itens = new ArrayList<>();
+        List<ItemCategoryDto> itens = new ArrayList<>();
 
         while (tryNextPage) {
             String linkPaginado = String.format("%s%s%s", url, "?page=", numberPage);
@@ -152,7 +150,7 @@ public class ScrapingMagaluHtmlunit {
                 System.out.println(String.format("%s, %s, %s, %s, %s, %s, %s, %s", company, deptName, productName, originalPrice, bestPrice, installment, inCash, urlProduct));
 
                 itens.add(
-                        ItemDto.of(productName, url, originalPrice, installment, bestPrice, inCash, urlProduct));
+                        ItemCategoryDto.of(productName, url, originalPrice, installment, bestPrice, inCash, urlProduct));
             }
 
             tryNextPage = page != null;
@@ -162,7 +160,6 @@ public class ScrapingMagaluHtmlunit {
 
         saveItensCategory(itens);
     }
-
 
 //    private int extractTotalProdutos(HtmlPage page) {
 //        try {
@@ -177,8 +174,8 @@ public class ScrapingMagaluHtmlunit {
 
     private String extractInCash(HtmlAnchor produto) {
         try {
-            HtmlSpan sPix = produto.getFirstByXPath(".//span[1]");
-            return sPix.asNormalizedText().replaceAll("[()]", "");
+            HtmlSpan sPix = produto.getFirstByXPath(".//span[@data-testid=\"in-cash\"]");
+            return sPix.asNormalizedText();
         } catch (Exception e) {
         }
         return null;
@@ -270,7 +267,7 @@ public class ScrapingMagaluHtmlunit {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    private void save(List<UrlDto> subCategories) {
+    private void save(List<CategoryDto> subCategories) {
 
         subCategories.forEach(category -> {
 
@@ -321,7 +318,7 @@ public class ScrapingMagaluHtmlunit {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    private void saveItensCategory(List<ItemDto> itens) {
+    private void saveItensCategory(List<ItemCategoryDto> itens) {
 
         itens.forEach(item -> {
             ItemCategoryEntity entity = itemCategoryRepository.findByUrlItem(item.getUrlItem())
@@ -345,16 +342,16 @@ public class ScrapingMagaluHtmlunit {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor(staticName = "of")
-    private static class UrlDto {
-        private String name;
+    private static class CategoryDto {
         private String url;
+        private String name;
         private String urlParent;
     }
 
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor(staticName = "of")
-    private static class ItemDto {
+    private static class ItemCategoryDto {
         private String description;
         private String urlCategory;
         private BigDecimal originalPrice;
